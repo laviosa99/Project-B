@@ -55,14 +55,12 @@ class CollabFilterOneVectorPerItem(AbstractBaseCollabFilterSGD):
         # TIP: use self.n_factors to access number of hidden dimensions
         self.param_dict = dict(
             mu=ag_np.ones(1),
-            b_per_user=ag_np.ones(n_users), # FIX dimensionality
+            b_per_user=ag_np.ones(n_users), # FIX dimensionality, might have to consider K and be more than just 1-dim
             c_per_item=ag_np.ones(n_items), # FIX dimensionality
-            U=0.001 * random_state.randn(n_users, self.n_factors), # FIX dimensionality
-            V=0.001 * random_state.randn(n_items, self.n_factors), # FIX dimensionality
+            U=0.01 * random_state.randn(n_users, self.n_factors), # FIX dimensionality
+            V=0.01 * random_state.randn(n_items, self.n_factors), # FIX dimensionality
             )
         
-        print("U", self.param_dict["U"])
-
 
     def predict(self, user_id_N, item_id_N,
                 mu=None, b_per_user=None, c_per_item=None, U=None, V=None):
@@ -83,8 +81,20 @@ class CollabFilterOneVectorPerItem(AbstractBaseCollabFilterSGD):
             Entry n is for the n-th pair of user_id, item_id values provided.
         '''
         # TODO: Update with actual prediction logic
+        if mu is None: 
+            mu = self.param_dict['mu']
+        if b_per_user is None: 
+            b_per_user = self.param_dict['b_per_user']
+        if c_per_item is None:
+            c_per_item = self.param_dict['c_per_item']
+        if U is None:
+            U = self.param_dict['U']
+        if V is None:
+            V = self.param_dict['V']
+
         N = user_id_N.size
-        yhat_N = ag_np.ones(N)
+        yhat_N = ag_np.full(N, mu)
+        
         yhat_N = mu + b_per_user[user_id_N] + c_per_item[item_id_N] + ag_np.sum(ag_np.array(U[user_id_N]) * ag_np.array(V[item_id_N]), axis=1)
         return yhat_N
 
@@ -106,12 +116,16 @@ class CollabFilterOneVectorPerItem(AbstractBaseCollabFilterSGD):
         # TIP: use self.alpha to access regularization strength
         y_N = data_tuple[2]
         yhat_N = self.predict(data_tuple[0], data_tuple[1], **param_dict)
+        loss_total = ag_np.mean((y_N - yhat_N) ** 2)
+
+        # mse = ag_np.mean((y_N - yhat_N) ** 2)
+        # regularization = self.alpha * (ag_np.sum(param_dict['b_per_user'] ** 2) + ag_np.sum(param_dict['c_per_item'] ** 2))
 
         mse = ag_np.mean(ag_np.square(y_N - yhat_N))
         regularization = self.alpha * (ag_np.sum(ag_np.sum(ag_np.array(param_dict["U"])** 2)) + ag_np.sum(ag_np.sum(ag_np.array(param_dict["V"]) ** 2)))
 
-        loss_total = mse + regularization
-        return loss_total    
+
+        return mse + regularization    
 
 
 if __name__ == '__main__':
@@ -123,7 +137,7 @@ if __name__ == '__main__':
     # Create the model and initialize its parameters
     # to have right scale as the dataset (right num users and items)
     model = CollabFilterOneVectorPerItem(
-        n_epochs=10, batch_size=10000, step_size=0.1,
+        n_epochs=10, batch_size=10000, step_size=0.7,
         n_factors=2, alpha=0.0)
     model.init_parameter_dict(n_users, n_items, train_tuple)
 
